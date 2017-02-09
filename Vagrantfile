@@ -69,7 +69,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       end
       # Add FQDN
         if Vagrant.has_plugin?("vagrant-dns")
-          fqdn = "/#{machines['hostname']}.#{general_opts.first['domain']}.#{general_opts.first['tld']}$/"
+          fqdn = "^.*#{machines['hostname']}.#{general_opts.first['domain']}.#{general_opts.first['tld']}$"
           config.dns.patterns.push fqdn
         end
     end
