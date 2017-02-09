@@ -1,0 +1,12 @@
+---
+- option: general
+  tld: dev
+  domain: bitbuild
+
+- option: machine
+  name: jenkins
+  primary: true
+  box: ubuntu/xenial64
+  hostname: jenkins
+  memory: 512
+  priv_ip: 192.168.56.10
