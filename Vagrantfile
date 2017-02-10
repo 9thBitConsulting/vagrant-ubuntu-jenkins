@@ -1,15 +1,15 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
-VAGRANTFILE_API_VERSION = "2"
-JENKINS_USERNAME = "admin"
-JENKINS_PASSWORD = "admin"
-
+# Load our custom configuration and prepare some global variables
 require 'yaml'
-current_dir    = File.dirname(File.expand_path(__FILE__))
-ext_conf       = YAML.load_file("#{current_dir}/options.yaml")
-general_opts   = ext_conf.select {|hash| hash["option"] == "general"}
-machines       = ext_conf.select {|hash| hash["option"] == "machine"}
+cwd       = File.dirname(File.expand_path(__FILE__))
+ext_conf  = YAML.load_file("#{cwd}/options.yaml")
+_opts     = Hash[ext_conf.select {|hash| hash["option"] == "general"}[0]]
+machines  = ext_conf.select {|hash| hash["option"] == "machine"}
+
+
+VAGRANTFILE_API_VERSION = "2"
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
@@ -33,45 +33,49 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   # DNS for boxes
   if Vagrant.has_plugin?("vagrant-dns")
-    config.dns.tld = general_opts.first["tld"]
-    config.dns.patterns = []
-    VagrantDNS::Config.logger = Logger.new("dns.log")
+    config.dns.tld = "#{_opts["domain"]}.#{_opts["tld"]}"
   end
   
-  machines.each do |machines|
+  machines.each do |m|
 
-    config.vm.define machines["name"], primary: machines["primary"] do |srv|
+    if !m["enabled"]
+      next
+    end
+    # Prepends the VM name with our project so that we can have multiple
+    # projects with the same VM name
+    _vmName = "#{_opts["project"]}-#{m["name"]}"
 
-      srv.vm.box = machines["box"]
+    config.vm.define m["name"], primary: m["primary"] do |srv|
+
+      srv.vm.box = m["box"]
       srv.ssh.insert_key = true
       srv.vm.synced_folder ".", "/vagrant", disabled: true
 
       srv.vm.provider :virtualbox do |v|
-        v.name = "jenkins"
-        v.memory = machines["memory"]
-        v.cpus = 2
-        v.customize ["modifyvm", :id, "--natdnshostresolver1", "on"]
-        v.customize ["modifyvm", :id, "--ioapic", "on"]
-      end
-
-      srv.vm.hostname = "jenkins"
-      srv.vm.network :private_network, ip: machines["priv_ip"]
-
-      # Set the name of the VM. See: http://stackoverflow.com/a/17864388/100134
-      #config.vm.define :jenkins do |jenkins|
-      #end
-
-    # Ansible provisioner.
-      srv.vm.provision "ansible" do |ansible|
-        ansible.playbook = "provisioning/ansible/playbook.yml" 
-        #ansible.inventory_path = "provisioning/inventory"
-        ansible.sudo = true
-      end
-      # Add FQDN
-        if Vagrant.has_plugin?("vagrant-dns")
-          fqdn = "^.*#{machines['hostname']}.#{general_opts.first['domain']}.#{general_opts.first['tld']}$"
-          config.dns.patterns.push fqdn
+        v.name = _vmName
+        v.linked_clone = m["linked_clone"]
+        v.memory = m["memory"]
+        v.cpus = m["cpus"]
+        # Always connect ttyS0 to an output file
+        v.customize [ "modifyvm", :id, "--uartmode1", "file", File.join(Dir.pwd, "#{m["hostname"]}-console.log") ]
+        m["vm_mods"].each do |_copts|
+          v.customize ["modifyvm", :id, _copts["option"], _copts["value"]]
+          #v.customize ["modifyvm", :id, "--ioapic", "on"]
         end
+      end
+
+      srv.vm.hostname = m["hostname"]
+      srv.vm.network :private_network, ip: m["private_ip"]
+
+      if m["provision"]
+        # Ansible provisioner.
+        srv.vm.provision "ansible" do |ansible|
+          ansible.playbook = "provisioning/ansible/playbook.yml" 
+          ansible.sudo = true
+        end
+      end
     end
   end
+  #//TODO: Post up message:
+  # config,vm.post_up_message
 end

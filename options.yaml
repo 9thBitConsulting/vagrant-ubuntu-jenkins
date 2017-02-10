@@ -2,11 +2,37 @@
 - option: general
   tld: dev
   domain: bitbuild
+  project: bitbuild
 
 - option: machine
+  enabled: false
   name: jenkins
   primary: true
   box: ubuntu/xenial64
+  box_url:
+  linked_clone: false
   hostname: jenkins
   memory: 512
-  priv_ip: 192.168.56.10
+  cpus: 2
+  private_ip: 192.168.56.10
+  provision: false
+  playbook: provisioning/ansible/playbook.yml
+
+- option: machine
+  enabled: true
+  name: node2
+  primary: false
+  box: ubuntu/xenial64
+  box_url:
+  linked_clone: false
+  hostname: node2
+  memory: 512
+  cpus: 1
+  private_ip: 192.168.56.11
+  vm_mods:
+    - option: --natdnshostresolver1
+      value: "on"
+    - option: --ioapic
+      value: "on"
+  provision: false
+  playbook:
